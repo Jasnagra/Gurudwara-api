@@ -15,14 +15,18 @@ export class ArticleService {
     }
 
     getArticles(req: Request, res: Response, articleType: ArticleType): void {
+        res.set('Access-Control-Allow-Origin', '*');
         const gid = req.params.gid;
         const articlesRef = this.db.collection(`gurudwaras/${gid}/articles`).where('itemType', '==', articleType);
         articlesRef.get().then((querySnapshot: any) => {
           if (querySnapshot.empty) {
-            res.status(200).json({ result: null }) 
+            res.status(200).json([]) 
           } else {
-            const docs = querySnapshot.docs.map((doc: any) => { return { id: doc.id, data: doc.data() } });
-            res.status(200).json({ result: docs })  
+            const docs = querySnapshot.docs.map((doc: any) => { 
+              const tempDoc = this.mapDocument(doc);
+              return { id: doc.id, data: tempDoc };
+            });
+            res.status(200).json(docs);
           }
         }).catch((err: any) => {
             return res.status(500).send({ "code": '5002', "message": ErrorType.ERR5002 });
@@ -30,6 +34,7 @@ export class ArticleService {
     }
 
     getArticleById(req: Request, res: Response, articleType: ArticleType): void {
+        res.set('Access-Control-Allow-Origin', '*');
         const gid = req.params.gid;
         const aid = req.params.aid;
         const articlesRef = this.db.collection(`gurudwaras/${gid}/articles`).doc(`${aid}`);
@@ -37,7 +42,8 @@ export class ArticleService {
             if (!doc.exists) {
               res.status(200).json({ data: null })
             } else {
-              res.status(200).json({ data: doc })
+              const tempDoc = this.mapDocument(doc);
+              res.status(200).json({ data: tempDoc });
             }
         }).catch((err: any) => res.status(500).send({ "code": "5002", "message": ErrorType.ERR5002 }));
     }
@@ -52,5 +58,20 @@ export class ArticleService {
         } else {
             res.status(500).send({ "code": "5001", "message": ErrorType.ERR5001 });
         }
+    }
+
+    private mapDocument(doc: any): any {
+      const dp = this.convertFSTimeStamp(doc.data().datePosted);
+      const st = this.convertFSTimeStamp(doc.data().startTime);
+      const et = this.convertFSTimeStamp(doc.data().endTime);
+      return {...doc.data(), 'startTime': st, 'endTime': et, 'datePosted': dp };
+    }
+
+    private convertFSTimeStamp(timeSt: admin.firestore.Timestamp): any {
+      if (timeSt) {
+        const ts = new admin.firestore.Timestamp(timeSt.seconds, timeSt.nanoseconds);
+        return ts.toMillis();  
+      }
+      return 0;
     }
 }
